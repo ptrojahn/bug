@@ -2,12 +2,14 @@
 
 #include "entity.hpp"
 
+#include <iostream>
+
 World::World() : world(b2Vec2(0.0f, 0.f)) {
 }
 
 void World::addEntity(Entity* ent) {
-	ent->body = world.CreateBody(&ent->bodyDef);
-	ent->body->CreateFixture(ent->shape, 0.0);
+	ent->initPhysics(&world);
+	ent->body->SetUserData(ent);
 	entities.push_back(ent);
 }
 
@@ -24,7 +26,7 @@ void World::exit() {
 }
 
 void World::simVisual() {
-	sf::RenderWindow window(sf::VideoMode(400, 400), "Bug");
+	sf::RenderWindow window(sf::VideoMode(600, 600), "Bug");
 	window.setFramerateLimit(60);
 
 	run = true;
@@ -37,7 +39,6 @@ void World::simVisual() {
 				window.close();
 		}
 		window.clear();
-		world.Step(1.f / 60.f, 6, 2);
 		for (auto ent : entities) {
 			ent->update(this);
 		}

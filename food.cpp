@@ -1,11 +1,24 @@
 #include "food.hpp"
 
-Food::Food(int x, int y) {
-	bodyDef.position.Set(x / 100.f, y / 100.f);
-	circle.setRadius(10);
+#include <iostream>
+
+const float RADIUS = 10.f;
+
+Food::Food(int x, int y)  {
+	color = sf::Color::Blue;
+	circle.setRadius(RADIUS);
 	circle.setFillColor(sf::Color::Blue);
-	shape = new b2CircleShape();
-	shape->m_radius = 10 / 100.f;
+	initX = x;
+	initY = y;
+}
+
+void Food::initPhysics(b2World* world) {
+	b2BodyDef bodyDef;
+	bodyDef.position.Set(initX / 100.f, initY / 100.f);
+	body = world->CreateBody(&bodyDef);
+	b2CircleShape shape_body;
+	shape_body.m_radius = RADIUS / 100.f;
+	body->CreateFixture(&shape_body, 1.0);
 }
 
 void Food::update(World* world) {

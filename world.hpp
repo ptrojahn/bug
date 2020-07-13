@@ -15,9 +15,10 @@ public:
 	void sim();
 	void exit();
 
+	b2World world;
+
 private:
 	std::vector<Entity*> entities;
-	b2World world;
 	bool run;
 };
 

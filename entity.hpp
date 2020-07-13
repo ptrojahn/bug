@@ -8,12 +8,12 @@
 
 class Entity : public sf::Drawable {
 public:
-	b2Body* body;
-	b2Shape* shape;
-	b2BodyDef bodyDef;
-
+	virtual void initPhysics(b2World* world) = 0;
 	virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const = 0;
-	void update(World* world);
+	virtual void update(World* world);
+
+	b2Body* body;
+	sf::Color color;
 
 protected:
 	Entity();

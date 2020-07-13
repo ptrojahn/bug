@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(bug)
 set(CMAKE_CXX_COMPILER clang++)
+set(CMAKE_CXX_STANDARD 17)
 
 set(Torch_DIR ${CMAKE_SOURCE_DIR}/../libtorch/share/cmake/Torch)
 find_package(Torch REQUIRED)
@@ -9,7 +10,7 @@ find_package(SFML 2 COMPONENTS graphics window system)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 add_compile_options(-g)
 
-add_executable(bug main.cpp world.cpp food.cpp entity.cpp)
+add_executable(bug main.cpp world.cpp food.cpp entity.cpp bug.cpp)
 target_compile_features(bug PUBLIC cxx_range_for)
 target_link_libraries(bug ${TORCH_LIBRARIES})
 target_link_libraries(bug sfml-graphics sfml-window sfml-system)

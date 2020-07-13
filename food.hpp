@@ -8,10 +8,12 @@
 class Food : public Entity {
 public:
 	Food(int x, int y);
-	virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const;
+	void initPhysics(b2World* world);
+	void draw(sf::RenderTarget& target, sf::RenderStates states) const;
 	void update(World* world);
 
 private:
+	int initX, initY;
 	sf::CircleShape circle;
 };
 
