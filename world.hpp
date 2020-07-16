@@ -2,7 +2,8 @@
 #define WORLD_H
 
 #include <vector>
-#include <Box2D/Box2D.h>
+
+#include "geometry.hpp"
 
 class Entity;
 
@@ -11,14 +12,13 @@ public:
 	World();
 	void addEntity(Entity* ent);
 	void removeEntity(Entity* ent);
-	void simVisual();
-	void sim();
+	std::optional<Entity*> raycast(Ray ray);
+	void worldVisual();
 	void exit();
-
-	b2World world;
+	void worldStep();
 
 private:
-	std::vector<Entity*> entities;
+	std::vector<std::unique_ptr<Entity*>> entities;
 	bool run;
 };
 

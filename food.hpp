@@ -7,13 +7,10 @@
 
 class Food : public Entity {
 public:
-	Food(int x, int y);
-	void initPhysics(b2World* world);
+	Food(sf::Vector2i pos);
 	void draw(sf::RenderTarget& target, sf::RenderStates states) const;
-	void update(World* world);
 
 private:
-	int initX, initY;
 	sf::CircleShape circle;
 };
 
