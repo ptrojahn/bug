@@ -5,6 +5,14 @@
 #include <iostream>
 
 World::World() {
+
+}
+
+World::World(World &world) {
+	entities.reserve(world.entities.size());
+	for (std::unique_ptr<Entity*> &ent : world.entities) {
+		entities.push_back(std::make_unique<Entity*>((*ent)->clone())); // TODO How deep do we need to go?
+	}
 }
 
 void World::addEntity(Entity* ent) {
@@ -32,16 +40,11 @@ std::optional<Entity*> World::raycast(Ray ray) {
 	return result.has_value() ? std::optional<Entity*>(std::get<0>(result.value())) : std::nullopt;
 }
 
-void World::exit() {
-	run = false;
-}
-
-void World::worldVisual() {
-	sf::RenderWindow window(sf::VideoMode(600, 600), "Bug");
+void World::visual(std::function<bool(World&)> update) {
+	sf::RenderWindow window(sf::VideoMode(800, 800), "Bug");
 	window.setFramerateLimit(4);
 
-	run = true;
-	while (window.isOpen() && run)
+	while (window.isOpen() && update(*this))
 	{
 		sf::Event event;
 		while (window.pollEvent(event))
@@ -60,7 +63,7 @@ void World::worldVisual() {
 	}
 }
 
-void World::worldStep() {
+void World::step() {
 	for (auto& ent : entities) {
 		(*ent)->update(this);
 	}

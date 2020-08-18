@@ -10,16 +10,25 @@ class Entity;
 class World {
 public:
 	World();
+	World(World &world);
 	void addEntity(Entity* ent);
 	void removeEntity(Entity* ent);
 	std::optional<Entity*> raycast(Ray ray);
-	void worldVisual();
-	void exit();
-	void worldStep();
+	void visual(std::function<bool(World&)> update);
+	void step();
+	template<typename T> std::vector<T*> getAll() {
+		std::vector<T*> ents;
 
-private:
+		for (std::unique_ptr<Entity*> &entity : entities) {
+			T* e = dynamic_cast<T*>(*entity);
+			if (e != nullptr) {
+				ents.push_back(e);
+			}
+		}
+		return ents;
+	}
+
 	std::vector<std::unique_ptr<Entity*>> entities;
-	bool run;
 };
 
 #endif

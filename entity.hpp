@@ -10,6 +10,7 @@ class Entity : public sf::Drawable {
 public:
 	virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const = 0;
 	virtual void update(World* world);
+	virtual Entity* clone() = 0;
 
 	Shape* shape;
 	sf::Color color;

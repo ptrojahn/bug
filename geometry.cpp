@@ -159,7 +159,8 @@ bool Circle::intersection(Shape* shape) {
 	} else if (Rectangle* other = dynamic_cast<Rectangle*>(shape)) {
 		return other->intersection(this);
 	} else if (Circle* other = dynamic_cast<Circle*>(shape)) {
-		return other->intersection(this);
+		sf::Vector2i dist = other->pos - this->pos;
+		return sqrt(dist.x*dist.x + dist.y*dist.y) < this->radius + other->radius;
 	} else {
 		return false;
 	}

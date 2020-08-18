@@ -15,10 +15,11 @@ Bug::Bug(sf::Vector2i pos, float rotation) {
 	bug.setFillColor(sf::Color::Cyan);
 	eye.setRadius(6.f);
 	eye.setFillColor(sf::Color::Blue);
-
 	shape = new Circle(sf::Vector2i(pos.x, pos.y), 20);
 	bug.setPosition(position.x - 20, position.y - 20);
 	eye.setPosition(sf::Vector2f(position - sf::Vector2i(6, 6) + rotate(sf::Vector2i(0, -25), rotation)));
+
+	actionFunction = [](std::vector<sf::Color>){return Direction(false, false, false);};
 }
 
 void Bug::update(World* world) {
@@ -51,6 +52,10 @@ void Bug::update(World* world) {
 	dynamic_cast<Circle*>(shape)->pos = position;
 	bug.setPosition(position.x - 20, position.y - 20);
 	eye.setPosition(sf::Vector2f(position - sf::Vector2i(6, 6) + rotate(sf::Vector2i(0, -25), rotation)));
+}
+
+Entity *Bug::clone() {
+	return new Bug(position, rotation);
 }
 
 void Bug::draw(sf::RenderTarget& target, sf::RenderStates states) const {
