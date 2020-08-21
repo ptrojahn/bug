@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(bug)
-set(CMAKE_CXX_COMPILER clang++)
 set(CMAKE_CXX_STANDARD 17)
 
 set(Torch_DIR ${CMAKE_SOURCE_DIR}/../libtorch/share/cmake/Torch)
