@@ -4,9 +4,6 @@
 #include <iostream>
 
 
-const int FOV = 90;
-const int EYES = 64;
-
 Bug::Bug(sf::Vector2i pos, float rotation) {
 	position = pos;
 	this->rotation = rotation;
@@ -23,29 +20,25 @@ Bug::Bug(sf::Vector2i pos, float rotation) {
 }
 
 void Bug::update(World* world) {
-	sf::Color image[EYES];
-	for (int i = 0; i < EYES; i++) {
-		float angle = -(FOV / 2.f) + FOV / (float)(EYES - 1) * (float)i + rotation;
+	std::vector<sf::Color> render(BUG_RESOLUTION);
+	for (int i = 0; i < BUG_RESOLUTION; i++) {
+		float angle = -(BUG_FOV / 2.f) + BUG_FOV / (float)(BUG_RESOLUTION - 1) * (float)i + rotation;
 		Ray ray = Ray(sf::Vector2i(eye.getPosition() + sf::Vector2f(6.f, 6.f)), rotate(sf::Vector2i(0, -256), angle));
 		std::optional<Entity*> ent = world->raycast(ray);
 		if (ent.has_value()) {
-			image[i] = ent.value()->color;
+			render[i] = ent.value()->color;
 		}
 	}
 
-	/* DEEP REINFORCEMENT MAGIC */
-
-	bool actionLeft = false;
-	bool actionRight = false;
-	bool actionForward = false;
-
-	if (actionForward) {
+	Direction dir = actionFunction(render);
+	std::cout << dir.forward << " " << dir.left << " " << dir.right << std::endl;;
+	if (dir.forward) {
 		position += rotate(sf::Vector2i(0, -10), rotation);
 	}
-	if (actionLeft) {
+	if (dir.left) {
 		rotation -= 4;
 	}
-	if (actionRight) {
+	if (dir.right) {
 		rotation += 4;
 	}
 
@@ -62,8 +55,8 @@ void Bug::draw(sf::RenderTarget& target, sf::RenderStates states) const {
 	target.draw(bug);
 	target.draw(eye);
 
-	for (int i = 0; i < EYES; i++) {
-		float angle = -(FOV / 2.f) + FOV / (float)(EYES - 1) * (float)i + rotation;
+	for (int i = 0; i < BUG_RESOLUTION; i++) {
+		float angle = -(BUG_FOV / 2.f) + BUG_FOV / (float)(BUG_RESOLUTION - 1) * (float)i + rotation;
 		sf::Vertex line[] =
 		{
 			sf::Vertex(eye.getPosition() + sf::Vector2f(6.f, 6.f)),

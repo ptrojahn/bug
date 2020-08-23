@@ -9,10 +9,9 @@
 #include "bug.hpp"
 #include "food.hpp"
 
-#define EYE_RESOLUTION 32
 #define MUTATION 0.1
 #define GENERATIONS 2
-#define FIRSTGENERATION 1000
+#define FIRSTGENERATION 1
 #define DESCENDANTS 100
 #define MAXSIMLIMIT 1000
 #define REWARD 400
@@ -34,7 +33,7 @@ struct BugNet : torch::nn::Module {
 	torch::nn::Linear lin1 = nullptr;
 	torch::nn::Linear lin2 = nullptr;
 
-	BugNet() : lin0(EYE_RESOLUTION, EYE_RESOLUTION), lin1(EYE_RESOLUTION, EYE_RESOLUTION / 2), lin2(EYE_RESOLUTION / 2, 3) {
+	BugNet() : lin0(BUG_RESOLUTION * 3, BUG_RESOLUTION), lin1(BUG_RESOLUTION, BUG_RESOLUTION / 2), lin2(BUG_RESOLUTION / 2, 3) {
 		register_module("lin0", lin0);
 		register_module("lin1", lin1);
 		register_module("lin2", lin2);
@@ -51,9 +50,12 @@ struct BugNet : torch::nn::Module {
 	}
 
 	torch::Tensor forward(torch::Tensor x) {
-		x = torch::sigmoid(lin0->forward(x));
+		x = /*torch::sigmoid(*/lin0->forward(x) / BUG_RESOLUTION/*)*/;
+		std::cout << x << std::endl;
+		exit(42);
 		x = torch::sigmoid(lin1->forward(x));
-		return torch::sigmoid(lin2->forward(x));
+		x = torch::sigmoid(lin2->forward(x));
+		return x;
 	}
 };
 
@@ -65,30 +67,27 @@ void simulateVisual(BugNet &net, World world) {
 		std::vector<float> inputVec;
 		inputVec.reserve(3 * vision.size());
 		for (sf::Color color : vision) {
-			inputVec.push_back(color.r);
-			inputVec.push_back(color.g);
-			inputVec.push_back(color.b);
+			inputVec.push_back(color.r / 255.f);
+			inputVec.push_back(color.g / 255.f);
+			inputVec.push_back(color.b / 255.f);
 		}
-		torch::Tensor input = torch::from_blob(inputVec.data(), {(long)inputVec.size(), 1});
+		torch::Tensor input = torch::from_blob(inputVec.data(), (long)inputVec.size());
 		torch::Tensor output = net.forward(input);
+		//std::cout << output[0].item<float>() << " " << output[1].item<float>() << std::endl;
 		return Direction(output[0].item<float>() > 0.5, output[1].item<float>() > 0.5, output[2].item<float>() > 0.5);
 	});
+	int health = HEALTHINIT;
+
 	auto update = [&](World &world) {
-		int health = HEALTHINIT;
-		for(int i = 0; i < MAXSIMLIMIT; i++) {
-			for (Food* food : foods) {
-				if (food->shape->intersection(bug->shape)) {
-					health += REWARD;
-					torch::Tensor pos = torch::rand(2) * 700 + 50;
-					food->setPosition(sf::Vector2i(pos[0].item<int>(), pos[1].item<int>()));
-				}
+		for (Food* food : foods) {
+			if (food->shape->intersection(bug->shape)) {
+				health += REWARD;
+				torch::Tensor pos = torch::rand(2) * 700 + 50;
+				food->setPosition(sf::Vector2i(pos[0].item<int>(), pos[1].item<int>()));
 			}
-			health -= 1;
-			if (health == 0)
-				return i;
-			world.step();
 		}
-		return MAXSIMLIMIT;
+		health -= 1;
+		return health > 0;
 	};
 	world.visual(std::function(update));
 }
@@ -101,48 +100,14 @@ int simulate(BugNet &net, World world) {
 		std::vector<float> inputVec;
 		inputVec.reserve(3 * vision.size());
 		for (sf::Color color : vision) {
-			inputVec.push_back(color.r);
-			inputVec.push_back(color.g);
-			inputVec.push_back(color.b);
+			inputVec.push_back(color.r / 255.f);
+			inputVec.push_back(color.g / 255.f);
+			inputVec.push_back(color.b / 255.f);
 		}
-		torch::Tensor input = torch::from_blob(inputVec.data(), {(long)inputVec.size(), 1});
+		torch::Tensor input = torch::from_blob(inputVec.data(), (long)inputVec.size());
 		torch::Tensor output = net.forward(input);
 		return Direction(output[0].item<float>() > 0.5, output[1].item<float>() > 0.5, output[2].item<float>() > 0.5);
 	});
-	int health = HEALTHINIT;
-	for(int i = 0; i < MAXSIMLIMIT; i++) {
-		for (Food* food : foods) {
-			if (food->shape->intersection(bug->shape)) {
-				health += REWARD;
-				torch::Tensor pos = torch::rand(2) * 700 + 50;
-				food->setPosition(sf::Vector2i(pos[0].item<int>(), pos[1].item<int>()));
-			}
-		}
-		health -= 1;
-		if (health == 0)
-			return i;
-		world.step();
-	}
-	return MAXSIMLIMIT;
-}
-
-int simulateStep(BugNet &net, World world) {
-	Bug *bug = world.getAll<Bug>()[0];
-	std::vector<Food*> foods = world.getAll<Food>();
-
-	bug->actionFunction = std::function([&](std::vector<sf::Color> vision) {
-		std::vector<float> inputVec;
-		inputVec.reserve(3 * vision.size());
-		for (sf::Color color : vision) {
-			inputVec.push_back(color.r);
-			inputVec.push_back(color.g);
-			inputVec.push_back(color.b);
-		}
-		torch::Tensor input = torch::from_blob(inputVec.data(), {(long)inputVec.size(), 1});
-		torch::Tensor output = net.forward(input);
-		return Direction(output[0].item<float>() > 0.5, output[1].item<float>() > 0.5, output[2].item<float>() > 0.5);
-	});
-
 	int health = HEALTHINIT;
 	for(int i = 0; i < MAXSIMLIMIT; i++) {
 		for (Food* food : foods) {
@@ -164,6 +129,7 @@ void evolutionary_train(World &world) {
 	torch::manual_seed(42);
 	int thread_count = std::thread::hardware_concurrency();
 
+	// Randomly check for initial net
 	std::shared_ptr<BugNet> survivor;
 	int survivorScore = 0;
 	auto func_initial = [&](int count) -> std::tuple<int, std::shared_ptr<BugNet>> {

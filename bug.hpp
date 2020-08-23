@@ -5,6 +5,9 @@
 
 #include "entity.hpp"
 
+#define BUG_FOV 90
+#define BUG_RESOLUTION 64
+
 struct Direction {
 	bool forward;
 	bool left;
