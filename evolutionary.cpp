@@ -50,11 +50,11 @@ struct BugNet : torch::nn::Module {
 	}
 
 	torch::Tensor forward(torch::Tensor x) {
-		x = /*torch::sigmoid(*/lin0->forward(x) / BUG_RESOLUTION/*)*/;
+		x = torch::sigmoid(lin0->forward(x) / BUG_RESOLUTION);
+		x = torch::sigmoid(lin1->forward(x) / (BUG_RESOLUTION / 2));
+		x = torch::sigmoid(lin2->forward(x) / 3);
 		std::cout << x << std::endl;
 		exit(42);
-		x = torch::sigmoid(lin1->forward(x));
-		x = torch::sigmoid(lin2->forward(x));
 		return x;
 	}
 };

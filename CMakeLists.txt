@@ -8,6 +8,6 @@ find_package(SFML 2 COMPONENTS graphics window system)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 add_compile_options(-g)
 
-add_executable(bug main.cpp world.cpp food.cpp entity.cpp bug.cpp geometry.cpp evolutionary.cpp)
+add_executable(bug main.cpp world.cpp food.cpp entity.cpp bug.cpp geometry.cpp evolutionary.cpp reinforcement.cpp)
 target_link_libraries(bug ${TORCH_LIBRARIES})
 target_link_libraries(bug sfml-graphics sfml-window sfml-system)

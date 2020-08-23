@@ -15,10 +15,12 @@ int main(int argc, char* argv[]) {
 	world.addEntity(new Bug(sf::Vector2i(300, 300), -10.f));
 
 	if (argc == 1) {
-		evolutionary_run(world);
+		reinforcement_run(world);
 	} else if (argc == 2) {
 		if (strcmp(argv[1], "--tevo") == 0){
 			evolutionary_train(world);
+		} else if (strcmp(argv[1], "--trl") == 0){
+			reinforcement_train(world);
 		}
 	}
 	return 0;
