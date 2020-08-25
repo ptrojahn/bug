@@ -5,3 +5,4 @@ Makefile
 CMakeCache.txt
 CMakeLists.txt.user
 *.autosave
+build-*/

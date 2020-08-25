@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(bug)
 set(CMAKE_CXX_STANDARD 17)
 
-set(Torch_DIR ${CMAKE_SOURCE_DIR}/../libtorch/share/cmake/Torch)
+set(Torch_DIR ${CMAKE_SOURCE_DIR}/../../libtorch/share/cmake/Torch)
 find_package(Torch REQUIRED)
 find_package(SFML 2 COMPONENTS graphics window system)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
