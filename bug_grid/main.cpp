@@ -118,9 +118,9 @@ std::tuple<Vec2, int> evaluate(Vec2 state, int action) {
 	return std::make_tuple(newState, reward);
 }
 
-int egreedy(int policy, double epsilon) {
+Action egreedy(Action policy, double epsilon) {
 	if (probabilityDist(engine) < epsilon)
-		return actionDist(engine); // Explore
+		return (Action)actionDist(engine); // Explore
 	else
 		return policy; // Exploit
 }
@@ -135,6 +135,49 @@ void printMat(Mat<Action> mat) {
 	}
 	std::cout << "END" << std::endl;
 }
+//############################
+// TD(0) learning
+//############################
+
+Mat<Action> learn_sarsa() {
+	Mat<Action> policy(width, height);
+	Mat<std::array<double, 4>> qs(width, height);
+
+	const int episodes = 10000;
+
+	int debugSteps = 0;
+	const int debugPrint = 500;
+
+	double epsilon = 1;
+	const double epsilonDecay = 0.95;
+	const double discountFactor = 0.95;
+	const double alpha = 0.2;
+
+	for (int episode = 1; episode <= episodes; episode++) {
+		epsilon = epsilon * epsilonDecay;
+		Vec2 lastState = Vec2(startX, startY);
+		while (world.get(lastState) != 'O') {
+			debugSteps++;
+			Action action = egreedy(policy.get(lastState), epsilon);
+			auto res = evaluate(lastState, action);
+			Action action2 = egreedy(policy.get(std::get<0>(res)), epsilon);
+			// We add a small amount of the difference of the bellman equation and our current value to our current value
+			qs.get(lastState)[action] += alpha * (std::get<1>(res) + discountFactor*qs.get(std::get<0>(res))[action2] - qs.get(lastState)[action]);
+		}
+
+		if (episode % debugPrint == 0) {
+			std::cout << "Episode: " << episode << " Average steps: " << debugSteps / (double)debugPrint << std::endl;
+			printMat(policy);
+			debugSteps = 0;
+			std::cout << std::endl;
+		}
+	}
+	return policy;
+}
+
+//############################
+// Monte-Carlo learning
+//############################
 
 Mat<Action> learn_mc() {
 	Mat<Action> policy(width, height);
