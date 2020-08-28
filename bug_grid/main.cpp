@@ -24,6 +24,9 @@ struct Vec2 {
 		this->x += other.x;
 		this->y += other.y;
 	}
+	bool operator==(Vec2 other) {
+		return x == other.x && y == other.y;
+	}
 };
 
 std::ostream &operator<< (std::ostream &os, Vec2 &v) {
@@ -45,22 +48,22 @@ template<typename T> struct Mat {
 	Mat(int width, int height, T init) {
 		this->width = width;
 		this->height = height;
-		this->data = new T[width*height];
+		this->data = std::vector<T>(width*height, init);
 		for (int i = 0; i < width * height; i++) {
 			this->data[i] = init;
 		}
 	}
-	void set(int x, int y, T val) {
-		this->data[x + width * y] = val;
-	}
-	void set(Vec2 pos, T val) {
-		set(pos.x, pos.y, val);
-	}
 
-	T get(int x, int y) const {
+	T& get(int x, int y) {
 		return data[x + width * y];
 	}
-	T get(Vec2 pos) const {
+	T& get(Vec2 pos) {
+		return get(pos.x, pos.y);
+	}
+	const T& get(int x, int y) const {
+		return data[x + width * y];
+	}
+	const T& get(Vec2 pos) const {
 		return get(pos.x, pos.y);
 	}
 };
@@ -80,8 +83,11 @@ const int width = 9;
 const int height = 3;
 const Mat<char> world = Mat<char>(width, height,
 		"....<<..."
-		"........."
+		".<<<....."
 		">>>>>.<<O");
+		//"....<<..."
+		//".......<."
+		//"....<<<<O");
 
 const int startX = 0, startY = 0;
 const Vec2 actionLut[] = {Vec2(0, -1), Vec2(1, 0), Vec2(0, 1), Vec2(-1, 0)};
@@ -114,38 +120,66 @@ std::tuple<Vec2, int> evaluate(Vec2 state, int action) {
 
 int egreedy(int policy, double epsilon) {
 	if (probabilityDist(engine) < epsilon)
-		return policy; // Exploit
-	else
 		return actionDist(engine); // Explore
+	else
+		return policy; // Exploit
+}
+
+void printMat(Mat<Action> mat) {
+	std::cout << "START" << std::endl;
+	for (int y = 0; y < mat.height; y++) {
+		for (int x = 0; x < mat.width; x++) {
+			std::cout << mat.get(x, y);
+		}
+		std::cout << std::endl;
+	}
+	std::cout << "END" << std::endl;
 }
 
 Mat<Action> learn_mc() {
 	Mat<Action> policy(width, height);
-	Mat<int> counter(width, height);
-	Mat<double> meanValue(width, height);
+	Mat<std::array<int, 4>> counter(width, height);
+	Mat<std::array<double, 4>> meanValue(width, height);
 
-	for (int episode = 1; episode < 10000; episode++) {
-		//### Run episode
-		double epsilon = 0.8;
+	const int episodes = 10000;
+
+	int debugSteps = 0;
+	const int debugPrint = 500;
+
+	double epsilon = 1;
+	const double epsilonDecay = 0.95;
+	for (int episode = 1; episode <= episodes; episode++) {
+		//### Policy evaluation: Calculate new values for V with our policy
+		// Run episode
+		epsilon = epsilon * epsilonDecay;
 		std::vector<Step> history;
 		Vec2 lastPos = Vec2(startX, startY);
 		while (world.get(lastPos) != 'O') {
 			int action = egreedy(policy.get(lastPos), epsilon);
 			auto res = evaluate(lastPos, action);
-			lastPos = std::get<0>(res);
 			history.push_back(Step(Vec2(lastPos.x, lastPos.y), action, std::get<1>(res)));
+			lastPos = std::get<0>(res);
 		}
-		std::cout << history.size() << std::endl;
+		//std::cout << episode << std::endl;
 
-		//### Policy evaluation: Calculate new values for V with our policy
+		// Calculate new values for V with our policy
 		std::vector<int> localReturn(history.size());
 		localReturn.back() = history.back().reward;
 		for (int i = 0; i < localReturn.size() - 1; i++) {
 			localReturn[localReturn.size() - 2 - i] = history[localReturn.size() - 2 - i].reward + localReturn[localReturn.size() - 1 - i];
 		}
 		for (int i = 0; i < localReturn.size(); i++) {
-			counter.set(history[i].pos, counter.get(history[i].pos) + 1);
-			meanValue.set(history[i].pos, meanValue.get(history[i].pos) + (1./counter.get(history[i].pos))*(localReturn[i] - meanValue.get(history[i].pos)));
+			bool found = false;
+			for (int j = 0; j < i; j++) {
+				if (history[i].pos == history[j].pos && history[i].action == history[j].action) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				counter.get(history[i].pos)[history[i].action] = counter.get(history[i].pos)[history[i].action] + 1;
+				meanValue.get(history[i].pos)[history[i].action] = meanValue.get(history[i].pos)[history[i].action] + (1./counter.get(history[i].pos)[history[i].action])*(localReturn[i] - meanValue.get(history[i].pos)[history[i].action]);
+			}
 		}
 
 		//### Policy improvement: Update the policy with the newly gained knowledge of V
@@ -153,17 +187,20 @@ Mat<Action> learn_mc() {
 		for (int x = 0; x < width; x++) {
 			for (int y = 0; y < height; y++) {
 				Vec2 state = Vec2(x, y);
-				double newStateValues[] = {	meanValue.get(std::get<0>(evaluate(state, Up))),
-											meanValue.get(std::get<0>(evaluate(state, Right))),
-											meanValue.get(std::get<0>(evaluate(state, Down))),
-											meanValue.get(std::get<0>(evaluate(state, Left)))};
 				int maxAction = 0;
 				for (int action = 1; action < 3; action++) {
-					if (newStateValues[action] > newStateValues[maxAction])
+					if (meanValue.get(state)[action] > meanValue.get(state)[maxAction])
 						maxAction = action;
 				}
-				policy.set(state, (Action)maxAction);
+				policy.get(state) = (Action)maxAction;
 			}
+		}
+
+		debugSteps += history.size();
+		if (episode % debugPrint == 0) {
+			std::cout << "Episode: " << episode << " Average steps: " << debugSteps / (double)debugPrint << std::endl;
+			printMat(policy);
+			debugSteps = 0;
 		}
 	}
 	return policy;
