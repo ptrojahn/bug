@@ -2,26 +2,16 @@
 
 #include <string.h>
 
-#include "entity.hpp"
-#include "world.hpp"
-#include "food.hpp"
-#include "bug.hpp"
+#include "state.hpp"
 #include "geometry.hpp"
 #include "evolutionary.hpp"
+#include "reinforcement.hpp"
 
 int main(int argc, char* argv[]) {
-	World world;
-	world.addEntity(new Food(sf::Vector2i(200, 200)));
-	world.addEntity(new Bug(sf::Vector2i(300, 300), -10.f));
-
 	if (argc == 1) {
-		reinforcement_run(world);
-	} else if (argc == 2) {
-		if (strcmp(argv[1], "--tevo") == 0){
-			evolutionary_train(world);
-		} else if (strcmp(argv[1], "--trl") == 0){
-			reinforcement_train(world);
-		}
+		reinforcement_run();
+	} else if (argc == 2 && strcmp(argv[1], "-t") == 0) {
+		reinforcement_train();
 	}
 	return 0;
 }

@@ -1,9 +1,9 @@
 #ifndef REINFORCEMENT_HPP
 #define REINFORCEMENT_HPP
 
-#include "world.hpp"
+#include "state.hpp"
 
-void reinforcement_train(World &world);
-void reinforcement_run(World &world);
+void reinforcement_train();
+void reinforcement_run();
 
 #endif // REINFORCEMENT_HPP

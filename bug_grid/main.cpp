@@ -100,7 +100,7 @@ const Mat<char> world4 = Mat<char>(15, 8,
 		".....#.^...#O.."
 		"....#..^...#.#."
 		".......^...#..."
-		".........#.#..."
+		".........#.##.."
 		">>>>>>>>.......");
 
 const Mat<char> world = world4;
@@ -167,7 +167,7 @@ Mat<Action> learn_sarsa() {
 	Mat<std::array<double, 4>> qs(world.width, world.height);
 	Mat<std::array<double, 4>> eligibility_trace(world.width, world.height);
 
-	const int episodes = 5000;
+	const int episodes = 200;
 
 	int debugSteps = 0;
 	const int debugPrint = 1000;
@@ -242,7 +242,7 @@ Mat<Action> learn_mc() {
 	Mat<std::array<int, 4>> counter(world.width, world.height);
 	Mat<std::array<double, 4>> qs(world.width, world.height);
 
-	const int episodes = 10000;
+	const int episodes = 200;
 
 	int debugSteps = 0;
 	const int debugPrint = 500;
@@ -328,6 +328,6 @@ int main() {
 	for (Action action : actions) {
 		std::cout << actionStringLut[action] << " ";
 	}
-	std::cout << std::endl;
+	std::cout << "(" << actions.size() << ")" << std::endl;
 	return 0;
 }

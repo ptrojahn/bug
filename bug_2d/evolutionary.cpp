@@ -59,7 +59,7 @@ struct BugNet : torch::nn::Module {
 	}
 };
 
-void simulateVisual(BugNet &net, World world) {
+void simulateVisual(BugNet &net, State world) {
 	Bug *bug = world.getAll<Bug>()[0];
 	std::vector<Food*> foods = world.getAll<Food>();
 
@@ -74,11 +74,11 @@ void simulateVisual(BugNet &net, World world) {
 		torch::Tensor input = torch::from_blob(inputVec.data(), (long)inputVec.size());
 		torch::Tensor output = net.forward(input);
 		//std::cout << output[0].item<float>() << " " << output[1].item<float>() << std::endl;
-		return Direction(output[0].item<float>() > 0.5, output[1].item<float>() > 0.5, output[2].item<float>() > 0.5);
+		return Action(output[0].item<float>() > 0.5, output[1].item<float>() > 0.5, output[2].item<float>() > 0.5);
 	});
 	int health = HEALTHINIT;
 
-	auto update = [&](World &world) {
+	auto update = [&](State &world) {
 		for (Food* food : foods) {
 			if (food->shape->intersection(bug->shape)) {
 				health += REWARD;
@@ -92,7 +92,7 @@ void simulateVisual(BugNet &net, World world) {
 	world.visual(std::function(update));
 }
 
-int simulate(BugNet &net, World world) {
+int simulate(BugNet &net, State world) {
 	Bug *bug = world.getAll<Bug>()[0];
 	std::vector<Food*> foods = world.getAll<Food>();
 
@@ -106,7 +106,7 @@ int simulate(BugNet &net, World world) {
 		}
 		torch::Tensor input = torch::from_blob(inputVec.data(), (long)inputVec.size());
 		torch::Tensor output = net.forward(input);
-		return Direction(output[0].item<float>() > 0.5, output[1].item<float>() > 0.5, output[2].item<float>() > 0.5);
+		return Action(output[0].item<float>() > 0.5, output[1].item<float>() > 0.5, output[2].item<float>() > 0.5);
 	});
 	int health = HEALTHINIT;
 	for(int i = 0; i < MAXSIMLIMIT; i++) {
@@ -125,7 +125,7 @@ int simulate(BugNet &net, World world) {
 	return MAXSIMLIMIT;
 }
 
-void evolutionary_train(World &world) {
+void evolutionary_train(State &world) {
 	torch::manual_seed(42);
 	int thread_count = std::thread::hardware_concurrency();
 
@@ -204,7 +204,7 @@ void evolutionary_train(World &world) {
 	torch::save(survivor, "evolutionary.pt"); // TODO How does Module -> Value work
 }
 
-void evolutionary_run(World &world) {
+void evolutionary_run(State &world) {
 	std::shared_ptr<BugNet> net = std::make_shared<BugNet>();
 	torch::load(net, "evolutionary.pt");
 	simulateVisual(*net, world);
