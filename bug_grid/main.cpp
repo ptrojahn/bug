@@ -37,7 +37,7 @@ template<typename T> struct Mat {
 	int width, height;
 	std::vector<T> data;
 
-	Mat(int width, int height, T* data = nullptr) {
+	Mat(int width, int height, const T* data = nullptr) {
 		this->width = width;
 		this->height = height;
 		this->data = std::vector<T>(width*height);
@@ -79,15 +79,22 @@ struct Step {
 	}
 };
 
-const int width = 9;
-const int height = 3;
-const Mat<char> world = Mat<char>(width, height,
+const Mat<char> world1 = Mat<char>(9, 3,
 		"....<<..."
 		".<<<....."
 		">>>>>.<<O");
-		//"....<<..."
-		//".......<."
-		//"....<<<<O");
+const Mat<char> world2 = Mat<char>(9, 3,
+		"....##..."
+		".......#."
+		"....####O");
+const Mat<char> world3 = Mat<char>(9, 5,
+		"..#......"
+		"..#.####."
+		"..#....#."
+		"..####.#."
+		".......#O");
+
+const Mat<char> world = world3;
 
 const int startX = 0, startY = 0;
 const Vec2 actionLut[] = {Vec2(0, -1), Vec2(1, 0), Vec2(0, 1), Vec2(-1, 0)};
@@ -104,7 +111,9 @@ std::uniform_int_distribution<int> actionDist(0, 3);
 
 std::tuple<Vec2, int> evaluate(Vec2 state, int action) {
 	Vec2 newState = state + actionLut[action];
-	if (newState.x < 0 || newState.x > width - 1 || newState.y < 0 || newState.y > height - 1)
+	if (world.get(newState) == '#')
+		return std::make_tuple(state, -1);
+	if (newState.x < 0 || newState.x > world.width - 1 || newState.y < 0 || newState.y > world.height - 1)
 		return std::make_tuple(state, -1);
 	while (world.get(newState) == '>') {
 		newState += actionLut[Right];
@@ -136,25 +145,27 @@ void printMat(Mat<Action> mat) {
 	std::cout << "END" << std::endl;
 }
 //############################
-// TD(0) learning
+// Sarsa(lambda) learning
 //############################
 
 Mat<Action> learn_sarsa() {
-	Mat<Action> policy(width, height);
-	Mat<std::array<double, 4>> qs(width, height);
+	Mat<Action> policy(world.width, world.height);
+	Mat<std::array<double, 4>> qs(world.width, world.height);
 
-	const int episodes = 10000;
+	const int episodes = 1000;
 
 	int debugSteps = 0;
-	const int debugPrint = 500;
+	const int debugPrint = 100;
 
 	double epsilon = 1;
-	const double epsilonDecay = 0.95;
+	double alpha = 0.2;
+	const double epsilonDecay = 0.99;
+	const double alphaDecay = 0.99;
 	const double discountFactor = 0.95;
-	const double alpha = 0.2;
 
 	for (int episode = 1; episode <= episodes; episode++) {
 		epsilon = epsilon * epsilonDecay;
+		alpha = alpha * alphaDecay;
 		Vec2 lastState = Vec2(startX, startY);
 		while (world.get(lastState) != 'O') {
 			debugSteps++;
@@ -163,7 +174,24 @@ Mat<Action> learn_sarsa() {
 			Action action2 = egreedy(policy.get(std::get<0>(res)), epsilon);
 			// We add a small amount of the difference of the bellman equation and our current value to our current value
 			qs.get(lastState)[action] += alpha * (std::get<1>(res) + discountFactor*qs.get(std::get<0>(res))[action2] - qs.get(lastState)[action]);
+
+			// Update policy
+			// pi = maxarg a q(s, a)
+			for (int x = 0; x < world.width; x++) {
+				for (int y = 0; y < world.height; y++) {
+					Vec2 state = Vec2(x, y);
+					int maxAction = 0;
+					for (int action = 1; action <= 3; action++) {
+						if (qs.get(state)[action] > qs.get(state)[maxAction])
+							maxAction = action;
+					}
+					policy.get(state) = (Action)maxAction;
+				}
+			}
+
+			lastState = std::get<0>(res);
 		}
+		std::cout << episode << std::endl;
 
 		if (episode % debugPrint == 0) {
 			std::cout << "Episode: " << episode << " Average steps: " << debugSteps / (double)debugPrint << std::endl;
@@ -180,9 +208,9 @@ Mat<Action> learn_sarsa() {
 //############################
 
 Mat<Action> learn_mc() {
-	Mat<Action> policy(width, height);
-	Mat<std::array<int, 4>> counter(width, height);
-	Mat<std::array<double, 4>> meanValue(width, height);
+	Mat<Action> policy(world.width, world.height);
+	Mat<std::array<int, 4>> counter(world.width, world.height);
+	Mat<std::array<double, 4>> qs(world.width, world.height);
 
 	const int episodes = 10000;
 
@@ -221,18 +249,18 @@ Mat<Action> learn_mc() {
 			}
 			if (!found) {
 				counter.get(history[i].pos)[history[i].action] = counter.get(history[i].pos)[history[i].action] + 1;
-				meanValue.get(history[i].pos)[history[i].action] = meanValue.get(history[i].pos)[history[i].action] + (1./counter.get(history[i].pos)[history[i].action])*(localReturn[i] - meanValue.get(history[i].pos)[history[i].action]);
+				qs.get(history[i].pos)[history[i].action] = qs.get(history[i].pos)[history[i].action] + (1./counter.get(history[i].pos)[history[i].action])*(localReturn[i] - qs.get(history[i].pos)[history[i].action]);
 			}
 		}
 
 		//### Policy improvement: Update the policy with the newly gained knowledge of V
 		// pi = maxarg a q(s, a)
-		for (int x = 0; x < width; x++) {
-			for (int y = 0; y < height; y++) {
+		for (int x = 0; x < world.width; x++) {
+			for (int y = 0; y < world.height; y++) {
 				Vec2 state = Vec2(x, y);
 				int maxAction = 0;
-				for (int action = 1; action < 3; action++) {
-					if (meanValue.get(state)[action] > meanValue.get(state)[maxAction])
+				for (int action = 1; action <= 3; action++) {
+					if (qs.get(state)[action] > qs.get(state)[maxAction])
 						maxAction = action;
 				}
 				policy.get(state) = (Action)maxAction;
@@ -250,7 +278,7 @@ Mat<Action> learn_mc() {
 }
 
 int main() {
-	Mat<Action> policy = learn_mc();
+	Mat<Action> policy = learn_sarsa();
 
 	// Print optimized solution
 	Vec2 state = Vec2(startX, startY);
