@@ -84,17 +84,26 @@ const Mat<char> world1 = Mat<char>(9, 3,
 		".<<<....."
 		">>>>>.<<O");
 const Mat<char> world2 = Mat<char>(9, 3,
-		"....##..."
-		".......#."
-		"....####O");
+		"........."
+		"........."
+		">>>>>.##O");
 const Mat<char> world3 = Mat<char>(9, 5,
 		"..#......"
 		"..#.####."
 		"..#....#."
 		"..####.#."
 		".......#O");
+const Mat<char> world4 = Mat<char>(15, 8,
+		".....#........."
+		".....#....>>..."
+		".....#.....#..."
+		".....#.^...#O.."
+		"....#..^...#.#."
+		".......^...#..."
+		".........#.#..."
+		">>>>>>>>.......");
 
-const Mat<char> world = world3;
+const Mat<char> world = world4;
 
 const int startX = 0, startY = 0;
 const Vec2 actionLut[] = {Vec2(0, -1), Vec2(1, 0), Vec2(0, 1), Vec2(-1, 0)};
@@ -117,6 +126,9 @@ std::tuple<Vec2, int> evaluate(Vec2 state, int action) {
 		return std::make_tuple(state, -1);
 	while (world.get(newState) == '>') {
 		newState += actionLut[Right];
+	}
+	while (world.get(newState) == '^') {
+		newState += actionLut[Up];
 	}
 	while (world.get(newState) == '<') {
 		newState += actionLut[Left];
@@ -147,21 +159,25 @@ void printMat(Mat<Action> mat) {
 //############################
 // Sarsa(lambda) learning
 //############################
+//lambda = 1 behaves like monte carlo, but we can update online!
+//lambda = 0 behaves like TD learning
 
 Mat<Action> learn_sarsa() {
 	Mat<Action> policy(world.width, world.height);
 	Mat<std::array<double, 4>> qs(world.width, world.height);
+	Mat<std::array<double, 4>> eligibility_trace(world.width, world.height);
 
-	const int episodes = 1000;
+	const int episodes = 5000;
 
 	int debugSteps = 0;
-	const int debugPrint = 100;
+	const int debugPrint = 1000;
 
 	double epsilon = 1;
 	double alpha = 0.2;
 	const double epsilonDecay = 0.99;
 	const double alphaDecay = 0.99;
 	const double discountFactor = 0.95;
+	const double traceDecay = 0.8;
 
 	for (int episode = 1; episode <= episodes; episode++) {
 		epsilon = epsilon * epsilonDecay;
@@ -172,7 +188,21 @@ Mat<Action> learn_sarsa() {
 			Action action = egreedy(policy.get(lastState), epsilon);
 			auto res = evaluate(lastState, action);
 			Action action2 = egreedy(policy.get(std::get<0>(res)), epsilon);
-			// We add a small amount of the difference of the bellman equation and our current value to our current value
+			// Update eligibility trace
+			for (int x = 0; x < world.width; x++) {
+				for (int y = 0; y < world.height; y++) {
+					eligibility_trace.get(x, y)[action] *= traceDecay*discountFactor;
+				}
+			}
+			eligibility_trace.get(lastState)[action] = 1; // The trace can't go over 1
+			// The difference between the bellman equation and our current value
+			double tdError = std::get<1>(res) + discountFactor*qs.get(std::get<0>(res))[action2] - qs.get(lastState)[action];
+			// Shout out updates of qs back
+			for (int x = 0; x < world.width; x++) {
+				for (int y = 0; y < world.height; y++) {
+					qs.get(lastState)[action] += alpha * tdError * eligibility_trace.get(x, y)[action];
+				}
+			}
 			qs.get(lastState)[action] += alpha * (std::get<1>(res) + discountFactor*qs.get(std::get<0>(res))[action2] - qs.get(lastState)[action]);
 
 			// Update policy
@@ -190,8 +220,8 @@ Mat<Action> learn_sarsa() {
 			}
 
 			lastState = std::get<0>(res);
+			eligibility_trace = Mat<std::array<double, 4>>(world.width, world.height);
 		}
-		std::cout << episode << std::endl;
 
 		if (episode % debugPrint == 0) {
 			std::cout << "Episode: " << episode << " Average steps: " << debugSteps / (double)debugPrint << std::endl;
