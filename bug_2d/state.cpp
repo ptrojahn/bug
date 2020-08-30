@@ -11,15 +11,15 @@
 State::State() {
 	agentPos = sf::Vector2i(200, 200);
 	agentRotation = 0.;
-	blobs.push_back(Blob{.pos = sf::Vector2i(200, 100), .color = sf::Color::Green});
-	blobs.push_back(Blob{.pos = sf::Vector2i(100, 200), .color = sf::Color::Green});
-	blobs.push_back(Blob{.pos = sf::Vector2i(300, 200), .color = sf::Color::Green});
-	blobs.push_back(Blob{.pos = sf::Vector2i(200, 300), .color = sf::Color::Green});
+	blobs.push_back(Blob{.pos = sf::Vector2i(150, 100), .color = sf::Color::Green});
+	blobs.push_back(Blob{.pos = sf::Vector2i(250, 100), .color = sf::Color::Green});
+	blobs.push_back(Blob{.pos = sf::Vector2i(250, 300), .color = sf::Color::Green});
+	blobs.push_back(Blob{.pos = sf::Vector2i(150, 300), .color = sf::Color::Green});
 }
 
 Features State::getFeatures() {
 	Features features;
-	sf::Vector2i eyePos = agentPos - (rotate(sf::Vector2i(0, 20), agentRotation));
+	sf::Vector2i eyePos = agentPos + (rotate(sf::Vector2i(0, -20), agentRotation));
 	for (int i = 0; i < BUG_RESOLUTION; i++) {
 		float angle = -(BUG_FOV / 2.f) + BUG_FOV / (float)(BUG_RESOLUTION - 1) * (float)i + agentRotation;
 		Ray ray(eyePos, rotate(sf::Vector2i(0, -256), angle));
@@ -48,12 +48,12 @@ std::optional<Blob> State::raycast(Ray ray) {
 void sfmlDrawCircle(sf::RenderWindow& win, sf::Vector2i pos, int radius, sf::Color color) {
 	sf::CircleShape circle;
 	circle.setRadius(radius);
-	circle.setPosition(sf::Vector2f(pos - sf::Vector2i(radius / 2, radius / 2)));
+	circle.setPosition(sf::Vector2f(pos - sf::Vector2i(radius, radius)));
 	circle.setFillColor(color);
 	win.draw(circle);
 }
 
-void State::visual(std::function<Action(Features)> policy) {
+void State::visual(std::function<Action(State)> policy) {
 	sf::RenderWindow window(sf::VideoMode(800, 800), "Bug");
 	window.setFramerateLimit(4);
 
@@ -65,28 +65,27 @@ void State::visual(std::function<Action(Features)> policy) {
 			if (event.type == sf::Event::Closed)
 				window.close();
 		}
-		Action action = policy(getFeatures());
+		Action action = policy(*this);
 		evaluate(action);
 
+		window.clear();
 		for(Blob& b : blobs) {
 			sfmlDrawCircle(window, b.pos, BLOB_SIZE, b.color);
 		}
-		sf::Vector2i eyePos = agentPos - (rotate(sf::Vector2i(0, 20), agentRotation));
+		sf::Vector2i eyePos = agentPos + (rotate(sf::Vector2i(0, -20), agentRotation));
 		sfmlDrawCircle(window, agentPos, 20, sf::Color::Blue);
 		sfmlDrawCircle(window, eyePos, 6, sf::Color::Cyan);
-
 #ifdef DEBUG_DRAW
 		for (int i = 0; i < BUG_RESOLUTION; i++) {
 			float angle = -(BUG_FOV / 2.f) + BUG_FOV / (float)(BUG_RESOLUTION - 1) * (float)i + agentRotation;
 			sf::Vertex line[] =
 			{
-				sf::Vertex(sf::Vector2f(eyePos) + sf::Vector2f(6.f, 6.f)),
-				sf::Vertex(sf::Vector2f(sf::Vector2i(eyePos) + sf::Vector2i(6, 6) + rotate(sf::Vector2i(0, -256), angle)))
+				sf::Vertex(sf::Vector2f(eyePos)),
+				sf::Vertex(sf::Vector2f(sf::Vector2i(eyePos) + rotate(sf::Vector2i(0, -256), angle)))
 			};
 			window.draw(line, 2, sf::Lines);
 		}
 #endif
-
 		window.display();
 	}
 }

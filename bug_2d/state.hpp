@@ -28,7 +28,7 @@ class State {
 public:
 	State();
 	Features getFeatures();
-	void visual(std::function<Action (Features)> policy);
+	void visual(std::function<Action(State)> policy);
 	int evaluate(Action action);
 
 private:

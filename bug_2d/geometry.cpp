@@ -138,7 +138,7 @@ bool Rectangle::intersection(Shape* shape) {
 			Line(pos + sf::Vector2i(0, size.y), pos + sf::Vector2i(size.x, size.y))
 		};
 		for (auto lThis : linesThis) {
-			if (lThis.intersection(this)) {
+			if (lThis.intersection(other)) {
 				return true;
 			}
 		}
@@ -149,7 +149,7 @@ bool Rectangle::intersection(Shape* shape) {
 }
 
 Circle::Circle(sf::Vector2i pos, int radius) {
-	this->pos = pos + sf::Vector2i(radius, radius);
+	this->pos = pos;
 	this->radius = radius;
 }
 
