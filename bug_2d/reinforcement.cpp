@@ -7,10 +7,10 @@
 #include "state.hpp"
 
 struct Replay {
-	Features pre;
+	torch::Tensor pre;
 	Action action;
 	int reward;
-	Features post;
+	torch::Tensor post;
 };
 
 struct QNet : torch::nn::Module {
@@ -33,22 +33,13 @@ struct QNet : torch::nn::Module {
 };
 
 Action qargmax(QNet& net, State& state) {
-	std::vector<float> inputVec;
-	Features features = state.getFeatures();
-	inputVec.reserve(3 * features.size() + 3);
-	for (sf::Color color : features) {
-		inputVec.push_back(color.r / 255.f);
-		inputVec.push_back(color.g / 255.f);
-		inputVec.push_back(color.b / 255.f);
-	}
-	torch::Tensor input = torch::from_blob(inputVec.data(), (long)inputVec.size());
-	return (Action)net.forward(input).argmax().item<int>();
+	return (Action)net.forward(state.getFeatures()).argmax().item<int>();
 }
 
 Action egreedy(Action action, double epsilon) {
 	double random = torch::rand(1).item<float>();
 	if (epsilon < random) // Explore
-		return (Action)std::ceil((3 * torch::rand(1)).item<float>());
+		return (Action)torch::randint(0, 4, 1).item<int>();
 	else { // Exploit
 		return action;
 	}
@@ -58,6 +49,8 @@ void reinforcement_train() {
 	QNet qNet;
 	const int episodes = 1000;
 	const double epsilonDecay = 0.99;
+	const int replaysMax = 100000;
+	const int replayBatch = 64;
 
 	State state;
 	double epsilon = 1.;
@@ -69,12 +62,29 @@ void reinforcement_train() {
 		epsilon = epsilon * epsilonDecay;
 
 		while (timeAlive < 1000) {
+			// Make step
 			timeAlive++;
-			Features pre = state.getFeatures();
+			torch::Tensor pre = state.getFeatures();
 			Action action = egreedy(qargmax(qNet, state), epsilon);
 			int reward = state.evaluate(action);
-			Features post = state.getFeatures();
-			replays.push_back(Replay{.pre = pre, .action = action, .reward = reward, .post = post});
+			torch::Tensor post = state.getFeatures();
+			Replay replay = {.pre = pre, .action = action, .reward = reward, .post = post};
+			if (replays.size() < replaysMax)
+				replays.push_back(replay);
+			else {
+				replays[replayIndex] = replay;
+				replayIndex %= replaysMax;
+			}
+
+			//Train from replay
+			float errorSum = 0;
+			if (replays.size() >= replayBatch) { // TODO: How is a pointer a iterator?
+				torch::Tensor batchIndices(torch::randint(0, replays.size(), replayBatch));
+				for (int i = 0; i < replayBatch; i++) {
+					int batchIndex = torch::randint(0, replays.size(), 1).item<int>();
+
+				}
+			}
 		}
 	}
 }

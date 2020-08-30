@@ -3,13 +3,12 @@
 
 #include <vector>
 #include <SFML/Graphics.hpp>
+#include <torch/torch.h>
 
 #include "geometry.hpp"
 
 #define BUG_FOV 90
 #define BUG_RESOLUTION 64
-
-typedef std::array<sf::Color, BUG_RESOLUTION> Features;
 
 class Entity;
 
@@ -27,7 +26,7 @@ struct Blob {
 class State {
 public:
 	State();
-	Features getFeatures();
+	torch::Tensor getFeatures();
 	void visual(std::function<Action(State)> policy);
 	int evaluate(Action action);
 

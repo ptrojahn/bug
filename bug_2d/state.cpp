@@ -17,18 +17,21 @@ State::State() {
 	blobs.push_back(Blob{.pos = sf::Vector2i(150, 300), .color = sf::Color::Green});
 }
 
-Features State::getFeatures() {
-	Features features;
+torch::Tensor State::getFeatures() {
+	std::array<float, BUG_RESOLUTION * 3> features;
 	sf::Vector2i eyePos = agentPos + (rotate(sf::Vector2i(0, -20), agentRotation));
 	for (int i = 0; i < BUG_RESOLUTION; i++) {
 		float angle = -(BUG_FOV / 2.f) + BUG_FOV / (float)(BUG_RESOLUTION - 1) * (float)i + agentRotation;
 		Ray ray(eyePos, rotate(sf::Vector2i(0, -256), angle));
 		std::optional<Blob> blob = raycast(ray);
 		if (blob.has_value()) {
-			features[i] = blob.value().color;
+			sf::Color color = blob.value().color;
+			features[i*3] = color.r / 255.f;
+			features[i*3 + 1] = color.g / 255.f;
+			features[i*3 + 2] = color.b / 255.f;
 		}
 	}
-	return features;
+	return torch::from_blob(features.data(), (long)features.size());
 }
 
 std::optional<Blob> State::raycast(Ray ray) {
@@ -110,4 +113,5 @@ int State::evaluate(Action action) {
 			}
 		}
 	}
+	return reward;
 }
