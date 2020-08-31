@@ -18,7 +18,7 @@ State::State() {
 }
 
 torch::Tensor State::getFeatures() {
-	std::array<float, BUG_RESOLUTION * 3> features;
+	torch::Tensor features = torch::zeros(BUG_RESOLUTION * 3);
 	sf::Vector2i eyePos = agentPos + (rotate(sf::Vector2i(0, -20), agentRotation));
 	for (int i = 0; i < BUG_RESOLUTION; i++) {
 		float angle = -(BUG_FOV / 2.f) + BUG_FOV / (float)(BUG_RESOLUTION - 1) * (float)i + agentRotation;
@@ -31,7 +31,7 @@ torch::Tensor State::getFeatures() {
 			features[i*3 + 2] = color.b / 255.f;
 		}
 	}
-	return torch::from_blob(features.data(), (long)features.size());
+	return features;
 }
 
 std::optional<Blob> State::raycast(Ray ray) {
@@ -54,6 +54,14 @@ void sfmlDrawCircle(sf::RenderWindow& win, sf::Vector2i pos, int radius, sf::Col
 	circle.setPosition(sf::Vector2f(pos - sf::Vector2i(radius, radius)));
 	circle.setFillColor(color);
 	win.draw(circle);
+}
+
+void sfmlDrawRect(sf::RenderWindow& win, sf::Vector2i pos, sf::Vector2i size, sf::Color color) {
+	sf::RectangleShape rect;
+	rect.setSize(sf::Vector2f(size));
+	rect.setPosition(sf::Vector2f(pos));
+	rect.setFillColor(color);
+	win.draw(rect);
 }
 
 void State::visual(std::function<Action(State)> policy) {
@@ -87,6 +95,14 @@ void State::visual(std::function<Action(State)> policy) {
 				sf::Vertex(sf::Vector2f(sf::Vector2i(eyePos) + rotate(sf::Vector2i(0, -256), angle)))
 			};
 			window.draw(line, 2, sf::Lines);
+		}
+
+		sfmlDrawRect(window, sf::Vector2i(0, 0), sf::Vector2i(800, 20), sf::Color::White);
+		torch::Tensor features = getFeatures();
+		for (int i = 0; i < BUG_RESOLUTION; i++) {
+			sf::Color color(features[i*3].item<float>()*255, features[i*3 + 1].item<float>()*255, features[i*3 + 2].item<float>()*255);
+			sf::Vector2i pos(i*8+4, 10);
+			sfmlDrawCircle(window, pos, 4, color);
 		}
 #endif
 		window.display();

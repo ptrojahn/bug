@@ -7,10 +7,10 @@
 #include "state.hpp"
 
 struct Replay {
-	torch::Tensor pre;
+	State pre;
 	Action action;
 	int reward;
-	torch::Tensor post;
+	State post;
 };
 
 struct QNet : torch::nn::Module {
@@ -35,22 +35,29 @@ struct QNet : torch::nn::Module {
 Action qargmax(QNet& net, State& state) {
 	return (Action)net.forward(state.getFeatures()).argmax().item<int>();
 }
+torch::Tensor qargmaxVal(QNet& net, State& state) {
+	return net.forward(state.getFeatures()).max();
+}
+torch::Tensor qVal(QNet& net, State& state, Action& action) {
+	return net.forward(state.getFeatures())[action];
+}
 
 Action egreedy(Action action, double epsilon) {
 	double random = torch::rand(1).item<float>();
 	if (epsilon < random) // Explore
-		return (Action)torch::randint(0, 4, 1).item<int>();
+		return (Action)torch::randint(0, 3, 1).item<int>();
 	else { // Exploit
 		return action;
 	}
 }
 
 void reinforcement_train() {
-	QNet qNet;
-	const int episodes = 1000;
-	const double epsilonDecay = 0.99;
-	const int replaysMax = 100000;
-	const int replayBatch = 64;
+	const int episodes = 10;
+	const double epsilonDecay = 0.9;
+	const int replaysMax = 10000;
+	const int replayBatch = 32;
+	std::shared_ptr<QNet> qNet = std::make_shared<QNet>();
+	torch::optim::SGD optimizer(qNet->parameters(), 0.05);
 
 	State state;
 	double epsilon = 1.;
@@ -58,16 +65,18 @@ void reinforcement_train() {
 	std::vector<Replay> replays;
 
 	for (int episode = 1; episode <= episodes; episode++) {
+		QNet qNetFixed(*qNet);
 		int timeAlive = 0;
 		epsilon = epsilon * epsilonDecay;
+		std::cout << episode << std::endl;
 
-		while (timeAlive < 1000) {
+		while (timeAlive < 200) {
 			// Make step
 			timeAlive++;
-			torch::Tensor pre = state.getFeatures();
-			Action action = egreedy(qargmax(qNet, state), epsilon);
+			State pre = state;
+			Action action = egreedy(qargmax(*qNet, state), epsilon);
 			int reward = state.evaluate(action);
-			torch::Tensor post = state.getFeatures();
+			State post = state;
 			Replay replay = {.pre = pre, .action = action, .reward = reward, .post = post};
 			if (replays.size() < replaysMax)
 				replays.push_back(replay);
@@ -77,25 +86,33 @@ void reinforcement_train() {
 			}
 
 			//Train from replay
-			float errorSum = 0;
 			if (replays.size() >= replayBatch) { // TODO: How is a pointer a iterator?
-				torch::Tensor batchIndices(torch::randint(0, replays.size(), replayBatch));
+				torch::Tensor valueExpected;
+				torch::Tensor valueNext;
 				for (int i = 0; i < replayBatch; i++) {
-					int batchIndex = torch::randint(0, replays.size(), 1).item<int>();
-
+					Replay& replay = replays[torch::randint(0, replays.size(), 1).item<int>()];
+					torch::Tensor valueExpectedR = replay.reward + qargmaxVal(qNetFixed, replay.post).unsqueeze(0).detach();
+					torch::Tensor valueNextR = qVal(*qNet, replay.pre, replay.action).unsqueeze(0);
+					valueExpected = valueExpected.defined() ? torch::cat({valueExpected, valueExpectedR}, 0) : valueExpectedR;
+					valueNext = valueNext.defined() ? torch::cat({valueNext, valueNextR}, 0) : valueNextR;
 				}
+				optimizer.zero_grad();
+				auto loss = torch::mse_loss(valueNext, valueExpected);
+				loss.backward();
+				optimizer.step();
 			}
 		}
 	}
+	torch::save(qNet, "qNet.pt");
 }
 
 void reinforcement_run() {
 	std::shared_ptr<QNet> net = std::make_shared<QNet>();
-	//torch::load(net, "reinforcement.pt");
+	torch::load(net, "qNet.pt");
 	State initial;
 	auto policyFun = std::function([&](State state) {
-		//egreedy(net, state, 0.);
-		return Action::Forward;
+		return qargmax(*net, state);
+		//return Action::Forward;
 	});
 	initial.visual(policyFun);
 }
