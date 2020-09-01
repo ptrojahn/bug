@@ -7,7 +7,7 @@
 
 #include "geometry.hpp"
 
-#define BUG_FOV 90
+#define BUG_FOV 120
 #define BUG_RESOLUTION 64
 
 class Entity;
@@ -27,11 +27,13 @@ class State {
 public:
 	State();
 	torch::Tensor getFeatures();
+	void updateWindow();
 	void visual(std::function<Action(State)> policy);
 	int evaluate(Action action);
 
 private:
 	std::optional<Blob> raycast(Ray ray);
+
 	std::vector<Blob> blobs;
 	sf::Vector2i agentPos;
 	float agentRotation;

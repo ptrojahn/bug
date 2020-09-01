@@ -9,11 +9,7 @@
 #include "reinforcement.hpp"
 
 int main(int argc, char* argv[]) {
-	/*torch::manual_seed(42);
-	torch::Tensor z = torch::tensor(1);
-	std::cout << z.sizes() << std::endl;
-	std::cout << torch::stack({z, z}) << std::endl;
-	return 0;*/
+	torch::manual_seed(42);
 
 	if (argc == 1) {
 		reinforcement_run();

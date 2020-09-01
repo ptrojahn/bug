@@ -6,20 +6,21 @@
 #include "state.hpp"
 
 #define DEBUG_DRAW
-#define BLOB_SIZE 10
+#define BLOB_SIZE 20
+#define REWARD 200
 
 State::State() {
-	agentPos = sf::Vector2i(200, 200);
+	agentPos = sf::Vector2i(400, 400);
 	agentRotation = 0.;
-	blobs.push_back(Blob{.pos = sf::Vector2i(150, 100), .color = sf::Color::Green});
-	blobs.push_back(Blob{.pos = sf::Vector2i(250, 100), .color = sf::Color::Green});
-	blobs.push_back(Blob{.pos = sf::Vector2i(250, 300), .color = sf::Color::Green});
-	blobs.push_back(Blob{.pos = sf::Vector2i(150, 300), .color = sf::Color::Green});
+	blobs.push_back(Blob{.pos = sf::Vector2i(350, 300), .color = sf::Color::Green});
+	blobs.push_back(Blob{.pos = sf::Vector2i(450, 300), .color = sf::Color::Green});
+	blobs.push_back(Blob{.pos = sf::Vector2i(450, 500), .color = sf::Color::Green});
+	blobs.push_back(Blob{.pos = sf::Vector2i(350, 500), .color = sf::Color::Green});
 }
 
 torch::Tensor State::getFeatures() {
 	torch::Tensor features = torch::zeros(BUG_RESOLUTION * 3);
-	sf::Vector2i eyePos = agentPos + (rotate(sf::Vector2i(0, -20), agentRotation));
+	sf::Vector2i eyePos = agentPos + (rotate(sf::Vector2i(0, -10), agentRotation));
 	for (int i = 0; i < BUG_RESOLUTION; i++) {
 		float angle = -(BUG_FOV / 2.f) + BUG_FOV / (float)(BUG_RESOLUTION - 1) * (float)i + agentRotation;
 		Ray ray(eyePos, rotate(sf::Vector2i(0, -256), angle));
@@ -64,48 +65,57 @@ void sfmlDrawRect(sf::RenderWindow& win, sf::Vector2i pos, sf::Vector2i size, sf
 	win.draw(rect);
 }
 
-void State::visual(std::function<Action(State)> policy) {
-	sf::RenderWindow window(sf::VideoMode(800, 800), "Bug");
-	window.setFramerateLimit(4);
+sf::RenderWindow* window = nullptr;
 
-	while (window.isOpen())
+void State::updateWindow() {
+	if (window == nullptr)
+		window = new sf::RenderWindow(sf::VideoMode(800, 800), "Bug");
+
+	window->clear();
+	for(Blob& b : blobs) {
+		sfmlDrawCircle(*window, b.pos, BLOB_SIZE, b.color);
+	}
+	sf::Vector2i eyePos = agentPos + (rotate(sf::Vector2i(0, -10), agentRotation));
+	sfmlDrawCircle(*window, agentPos, 10, sf::Color::Blue);
+	sfmlDrawCircle(*window, eyePos, 6, sf::Color::Cyan);
+#ifdef DEBUG_DRAW
+	for (int i = 0; i < BUG_RESOLUTION; i++) {
+		float angle = -(BUG_FOV / 2.f) + BUG_FOV / (float)(BUG_RESOLUTION - 1) * (float)i + agentRotation;
+		sf::Vertex line[] =
+		{
+			sf::Vertex(sf::Vector2f(eyePos)),
+			sf::Vertex(sf::Vector2f(sf::Vector2i(eyePos) + rotate(sf::Vector2i(0, -256), angle)))
+		};
+		window->draw(line, 2, sf::Lines);
+	}
+
+	sfmlDrawRect(*window, sf::Vector2i(0, 0), sf::Vector2i(800, 20), sf::Color::White);
+	torch::Tensor features = getFeatures();
+	for (int i = 0; i < BUG_RESOLUTION; i++) {
+		sf::Color color(features[i*3].item<float>()*255, features[i*3 + 1].item<float>()*255, features[i*3 + 2].item<float>()*255);
+		sf::Vector2i pos(i*8+4, 10);
+		sfmlDrawCircle(*window, pos, 4, color);
+	}
+#endif
+	window->display();
+}
+
+void State::visual(std::function<Action(State)> policy) {
+	updateWindow();
+	window->setFramerateLimit(8);
+
+	while (window->isOpen())
 	{
 		sf::Event event;
-		while (window.pollEvent(event))
+		while (window->pollEvent(event))
 		{
 			if (event.type == sf::Event::Closed)
-				window.close();
+				window->close();
 		}
 		Action action = policy(*this);
 		evaluate(action);
 
-		window.clear();
-		for(Blob& b : blobs) {
-			sfmlDrawCircle(window, b.pos, BLOB_SIZE, b.color);
-		}
-		sf::Vector2i eyePos = agentPos + (rotate(sf::Vector2i(0, -20), agentRotation));
-		sfmlDrawCircle(window, agentPos, 20, sf::Color::Blue);
-		sfmlDrawCircle(window, eyePos, 6, sf::Color::Cyan);
-#ifdef DEBUG_DRAW
-		for (int i = 0; i < BUG_RESOLUTION; i++) {
-			float angle = -(BUG_FOV / 2.f) + BUG_FOV / (float)(BUG_RESOLUTION - 1) * (float)i + agentRotation;
-			sf::Vertex line[] =
-			{
-				sf::Vertex(sf::Vector2f(eyePos)),
-				sf::Vertex(sf::Vector2f(sf::Vector2i(eyePos) + rotate(sf::Vector2i(0, -256), angle)))
-			};
-			window.draw(line, 2, sf::Lines);
-		}
-
-		sfmlDrawRect(window, sf::Vector2i(0, 0), sf::Vector2i(800, 20), sf::Color::White);
-		torch::Tensor features = getFeatures();
-		for (int i = 0; i < BUG_RESOLUTION; i++) {
-			sf::Color color(features[i*3].item<float>()*255, features[i*3 + 1].item<float>()*255, features[i*3 + 2].item<float>()*255);
-			sf::Vector2i pos(i*8+4, 10);
-			sfmlDrawCircle(window, pos, 4, color);
-		}
-#endif
-		window.display();
+		updateWindow();
 	}
 }
 
@@ -113,9 +123,9 @@ int State::evaluate(Action action) {
 	if (action == Forward) {
 		agentPos += rotate(sf::Vector2i(0, -10), agentRotation);
 	} else if (action == Left) {
-		agentRotation -= 4;
+		agentRotation -= 18;
 	} else if (action == Right) {
-		agentRotation += 4;
+		agentRotation += 18;
 	}
 
 	int reward = -1;
@@ -123,7 +133,7 @@ int State::evaluate(Action action) {
 		Circle blobCircle(blob.pos, BLOB_SIZE);
 		if (Circle(agentPos, 20).intersection(&blobCircle)) {
 			if (blob.color == sf::Color::Green) {
-				reward += 60;
+				reward += REWARD;
 				torch::Tensor pos = torch::rand(2) * 700 + 50;
 				blob.pos = sf::Vector2i(pos[0].item<int>(), pos[1].item<int>());
 			}

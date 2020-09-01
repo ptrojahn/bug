@@ -18,7 +18,7 @@ struct QNet : torch::nn::Module {
 	torch::nn::Linear lin1 = nullptr;
 	torch::nn::Linear lin2 = nullptr;
 
-	QNet() : lin0(BUG_RESOLUTION * 3, 64), lin1(64, 32), lin2(32, 3) {
+	QNet() : lin0(BUG_RESOLUTION * 3, 32), lin1(32, 16), lin2(16, 3) {
 		register_module("lin0", lin0);
 		register_module("lin1", lin1);
 		register_module("lin2", lin2);
@@ -27,8 +27,7 @@ struct QNet : torch::nn::Module {
 	torch::Tensor forward(torch::Tensor x) {
 		x = torch::relu(lin0->forward(x));
 		x = torch::relu(lin1->forward(x));
-		x = torch::relu(lin2->forward(x));
-		return x;
+		return lin2->forward(x);
 	}
 };
 
@@ -36,15 +35,15 @@ Action qargmax(QNet& net, State& state) {
 	return (Action)net.forward(state.getFeatures()).argmax().item<int>();
 }
 torch::Tensor qargmaxVal(QNet& net, State& state) {
-	return net.forward(state.getFeatures()).max();
+	return net.forward(state.getFeatures()).max().unsqueeze(0);
 }
 torch::Tensor qVal(QNet& net, State& state, Action& action) {
-	return net.forward(state.getFeatures())[action];
+	return net.forward(state.getFeatures())[action].unsqueeze(0);
 }
 
 Action egreedy(Action action, double epsilon) {
 	double random = torch::rand(1).item<float>();
-	if (epsilon < random) // Explore
+	if (random < epsilon) // Explore
 		return (Action)torch::randint(0, 3, 1).item<int>();
 	else { // Exploit
 		return action;
@@ -52,29 +51,35 @@ Action egreedy(Action action, double epsilon) {
 }
 
 void reinforcement_train() {
-	const int episodes = 10;
-	const double epsilonDecay = 0.9;
+	const int episodes = 64;
+	const double epsilonDecay = pow(0.1, 1 / (double)episodes);
 	const int replaysMax = 10000;
-	const int replayBatch = 32;
+	const int replayBatch = 64;
+	const float discount = 0.9;
 	std::shared_ptr<QNet> qNet = std::make_shared<QNet>();
-	torch::optim::SGD optimizer(qNet->parameters(), 0.05);
+	torch::optim::SGD optimizer(qNet->parameters(), 0.1);
 
-	State state;
 	double epsilon = 1.;
 	int replayIndex = 0;
 	std::vector<Replay> replays;
 
 	for (int episode = 1; episode <= episodes; episode++) {
 		QNet qNetFixed(*qNet);
+		State state;
 		int timeAlive = 0;
-		epsilon = epsilon * epsilonDecay;
 		std::cout << episode << std::endl;
+		epsilon = epsilon * epsilonDecay;
+
+		float debugLoss = 0;
+		int debugLossCount = 0;
+		torch::Tensor debugRes = torch::zeros(3);
 
 		while (timeAlive < 200) {
 			// Make step
 			timeAlive++;
 			State pre = state;
 			Action action = egreedy(qargmax(*qNet, state), epsilon);
+			debugRes += qNet->forward(state.getFeatures());
 			int reward = state.evaluate(action);
 			State post = state;
 			Replay replay = {.pre = pre, .action = action, .reward = reward, .post = post};
@@ -87,21 +92,26 @@ void reinforcement_train() {
 
 			//Train from replay
 			if (replays.size() >= replayBatch) { // TODO: How is a pointer a iterator?
-				torch::Tensor valueExpected;
-				torch::Tensor valueNext;
 				for (int i = 0; i < replayBatch; i++) {
+					optimizer.zero_grad();
 					Replay& replay = replays[torch::randint(0, replays.size(), 1).item<int>()];
-					torch::Tensor valueExpectedR = replay.reward + qargmaxVal(qNetFixed, replay.post).unsqueeze(0).detach();
-					torch::Tensor valueNextR = qVal(*qNet, replay.pre, replay.action).unsqueeze(0);
-					valueExpected = valueExpected.defined() ? torch::cat({valueExpected, valueExpectedR}, 0) : valueExpectedR;
-					valueNext = valueNext.defined() ? torch::cat({valueNext, valueNextR}, 0) : valueNextR;
+					torch::Tensor valueExpected = replay.reward + discount*qargmaxVal(qNetFixed, replay.post).detach();
+					torch::Tensor valueNext = qVal(*qNet, replay.pre, replay.action);
+
+					auto loss = torch::mse_loss(valueNext, valueExpected);
+					debugLoss += loss.item<float>();
+					debugLossCount++;
+					loss.backward();
+					// Otherwise large gradients can blow parameters up to inf TODO: why .data().
+					for (torch::Tensor& param : qNet->parameters()) {
+						param.grad().data().clamp_(-1, 1);
+					}
+					optimizer.step();
 				}
-				optimizer.zero_grad();
-				auto loss = torch::mse_loss(valueNext, valueExpected);
-				loss.backward();
-				optimizer.step();
 			}
+			state.updateWindow();
 		}
+		std::cout << "Loss: " << debugLoss / (float)debugLossCount << std::endl;
 	}
 	torch::save(qNet, "qNet.pt");
 }
@@ -112,7 +122,6 @@ void reinforcement_run() {
 	State initial;
 	auto policyFun = std::function([&](State state) {
 		return qargmax(*net, state);
-		//return Action::Forward;
 	});
 	initial.visual(policyFun);
 }
