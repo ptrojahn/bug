@@ -5,7 +5,7 @@
 
 #include "state.hpp"
 
-#define DEBUG_DRAW
+//#define DEBUG_DRAW
 #define BLOB_SIZE 20
 #define REWARD 200
 
@@ -102,7 +102,7 @@ void State::updateWindow() {
 
 void State::visual(std::function<Action(State)> policy) {
 	updateWindow();
-	window->setFramerateLimit(8);
+	window->setFramerateLimit(12);
 
 	while (window->isOpen())
 	{
@@ -120,9 +120,9 @@ void State::visual(std::function<Action(State)> policy) {
 }
 
 int State::evaluate(Action action) {
-	if (action == Forward) {
-		agentPos += rotate(sf::Vector2i(0, -10), agentRotation);
-	} else if (action == Left) {
+	//if (action == Forward) {
+	agentPos += rotate(sf::Vector2i(0, -10), agentRotation);
+	if (action == Left) {
 		agentRotation -= 18;
 	} else if (action == Right) {
 		agentRotation += 18;

@@ -51,13 +51,14 @@ Action egreedy(Action action, double epsilon) {
 }
 
 void reinforcement_train() {
-	const int episodes = 64;
+	const int episodes = 32;
+	const int episodeLength = 200;
 	const double epsilonDecay = pow(0.1, 1 / (double)episodes);
-	const int replaysMax = 10000;
+	const int replaysMax = episodeLength*16;
 	const int replayBatch = 64;
 	const float discount = 0.9;
 	std::shared_ptr<QNet> qNet = std::make_shared<QNet>();
-	torch::optim::SGD optimizer(qNet->parameters(), 0.1);
+	torch::optim::SGD optimizer(qNet->parameters(), 0.001);
 
 	double epsilon = 1.;
 	int replayIndex = 0;
@@ -67,14 +68,14 @@ void reinforcement_train() {
 		QNet qNetFixed(*qNet);
 		State state;
 		int timeAlive = 0;
-		std::cout << episode << std::endl;
 		epsilon = epsilon * epsilonDecay;
 
 		float debugLoss = 0;
 		int debugLossCount = 0;
 		torch::Tensor debugRes = torch::zeros(3);
+		torch::Tensor debugValue = torch::zeros(1);
 
-		while (timeAlive < 200) {
+		while (timeAlive < episodeLength) {
 			// Make step
 			timeAlive++;
 			State pre = state;
@@ -100,6 +101,7 @@ void reinforcement_train() {
 
 					auto loss = torch::mse_loss(valueNext, valueExpected);
 					debugLoss += loss.item<float>();
+					debugValue += valueNext.item<float>();
 					debugLossCount++;
 					loss.backward();
 					// Otherwise large gradients can blow parameters up to inf TODO: why .data().
@@ -111,9 +113,16 @@ void reinforcement_train() {
 			}
 			state.updateWindow();
 		}
-		std::cout << "Loss: " << debugLoss / (float)debugLossCount << std::endl;
+		std::cout << "Episode: " << episode << std::endl;
 	}
 	torch::save(qNet, "qNet.pt");
+
+	std::cout << "Done training!" << std::endl;
+	State initial;
+	auto policyFun = std::function([&](State state) {
+		return qargmax(*qNet, state);
+	});
+	initial.visual(policyFun);
 }
 
 void reinforcement_run() {
@@ -121,7 +130,7 @@ void reinforcement_run() {
 	torch::load(net, "qNet.pt");
 	State initial;
 	auto policyFun = std::function([&](State state) {
-		return qargmax(*net, state);
+		return egreedy(qargmax(*net, state), 0.1);
 	});
 	initial.visual(policyFun);
 }
