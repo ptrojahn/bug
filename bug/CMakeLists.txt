@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
+project(bug)
+set(CMAKE_CXX_STANDARD 17)
+
+set(Torch_DIR ${CMAKE_SOURCE_DIR}/../../libtorch-1.5.0/share/cmake/Torch)
+find_package(Torch REQUIRED)
+find_package(SFML 2 COMPONENTS graphics window system)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+add_compile_options(-g)
+
+add_executable(bug main.cpp state.cpp geometry.cpp reinforcement.cpp)
+target_link_libraries(bug ${TORCH_LIBRARIES})
+target_link_libraries(bug sfml-graphics sfml-window sfml-system)
