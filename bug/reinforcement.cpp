@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "state.hpp"
+#include "eligibilityopt.h"
 
 struct Replay {
 	State pre;
@@ -54,14 +55,15 @@ Action egreedy(Action action, double epsilon) {
  * Q-learning is off-policy because it updates the policy with respect to the greedy argmax
  * and not the e-greedy it uses as policy.*/
 void reinforcement_train() {
-	const int episodes = 32;
+	const int episodes = 64;
 	const int episodeLength = 200;
 	const double epsilonDecay = pow(0.1, 1 / (double)episodes);
+	const double learningRate = 0.001;
 	const int replaysMax = episodeLength*16;
-	const int replayBatch = 64;
+	const int replayBatch = 32;
 	const float discount = 0.9;
 	std::shared_ptr<QNet> qNet = std::make_shared<QNet>();
-	torch::optim::SGD optimizer(qNet->parameters(), 0.001);
+	EligibilityOpt optimizer(qNet->parameters(), learningRate, /*discount*/ 0);
 
 	double epsilon = 1.;
 	int replayIndex = 0;
@@ -101,6 +103,7 @@ void reinforcement_train() {
 					Replay& replay = replays[torch::randint(0, replays.size(), 1).item<int>()];
 					torch::Tensor valueExpected = replay.reward + discount*qargmaxVal(qNetFixed, replay.post).detach();
 					torch::Tensor valueNext = qVal(*qNet, replay.pre, replay.action);
+					torch::Tensor tdError = valueExpected - valueNext;
 
 					auto loss = torch::mse_loss(valueNext, valueExpected);
 					debugLoss += loss.item<float>();
@@ -111,7 +114,7 @@ void reinforcement_train() {
 					for (torch::Tensor& param : qNet->parameters()) {
 						param.grad().data().clamp_(-1, 1);
 					}
-					optimizer.step();
+					optimizer.step(/*tdError*/ torch::tensor(1));
 				}
 			}
 			state.updateWindow();
