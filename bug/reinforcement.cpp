@@ -51,23 +51,20 @@ Action egreedy(Action action, double epsilon) {
 	}
 }
 
-/* DQN learning implementation
+/* DQN learning implementation with eligibility traces
  * Q-learning is off-policy because it updates the policy with respect to the greedy argmax
  * and not the e-greedy it uses as policy.*/
 void reinforcement_train() {
-	const int episodes = 64;
+	const int episodes = 512;
 	const int episodeLength = 200;
 	const double epsilonDecay = pow(0.1, 1 / (double)episodes);
-	const double learningRate = 0.001;
-	const int replaysMax = episodeLength*16;
-	const int replayBatch = 32;
-	const float discount = 0.9;
+	const double learningRate = 0.00001;
+	const double discount = 0.8;
+	const double traceDecay = 0.5;
 	std::shared_ptr<QNet> qNet = std::make_shared<QNet>();
-	EligibilityOpt optimizer(qNet->parameters(), learningRate, /*discount*/ 0);
+	EligibilityOpt optimizer(qNet->parameters(), learningRate, traceDecay, discount);
 
 	double epsilon = 1.;
-	int replayIndex = 0;
-	std::vector<Replay> replays;
 
 	for (int episode = 1; episode <= episodes; episode++) {
 		QNet qNetFixed(*qNet);
@@ -75,51 +72,31 @@ void reinforcement_train() {
 		int timeAlive = 0;
 		epsilon = epsilon * epsilonDecay;
 
-		float debugLoss = 0;
-		int debugLossCount = 0;
-		torch::Tensor debugRes = torch::zeros(3);
-		torch::Tensor debugValue = torch::zeros(1);
+		int score = 0;
 
 		while (timeAlive < episodeLength) {
 			// Make step
 			timeAlive++;
 			State pre = state;
 			Action action = egreedy(qargmax(*qNet, state), epsilon);
-			debugRes += qNet->forward(state.getFeatures());
 			int reward = state.evaluate(action);
-			State post = state;
-			Replay replay = {.pre = pre, .action = action, .reward = reward, .post = post};
-			if (replays.size() < replaysMax)
-				replays.push_back(replay);
-			else {
-				replays[replayIndex] = replay;
-				replayIndex %= replaysMax;
+			optimizer.zero_grad();
+			torch::Tensor valueExpected = reward + discount*qargmaxVal(qNetFixed, state).detach();
+			torch::Tensor valueRealized = qVal(*qNet, pre, action);
+			torch::Tensor tdError = valueExpected - valueRealized;
+			torch::Tensor gradient = qVal(*qNet, pre, action);
+			gradient.backward();
+			for (torch::Tensor& param : qNet->parameters()) {
+				param.grad().data().clamp_(-1, 1);
 			}
 
-			//Train from replay
-			if (replays.size() >= replayBatch) { // TODO: How is a pointer a iterator?
-				for (int i = 0; i < replayBatch; i++) {
-					optimizer.zero_grad();
-					Replay& replay = replays[torch::randint(0, replays.size(), 1).item<int>()];
-					torch::Tensor valueExpected = replay.reward + discount*qargmaxVal(qNetFixed, replay.post).detach();
-					torch::Tensor valueNext = qVal(*qNet, replay.pre, replay.action);
-					torch::Tensor tdError = valueExpected - valueNext;
+			optimizer.step(tdError);
 
-					auto loss = torch::mse_loss(valueNext, valueExpected);
-					debugLoss += loss.item<float>();
-					debugValue += valueNext.item<float>();
-					debugLossCount++;
-					loss.backward();
-					// Otherwise large gradients can blow parameters up to inf TODO: why .data().
-					for (torch::Tensor& param : qNet->parameters()) {
-						param.grad().data().clamp_(-1, 1);
-					}
-					optimizer.step(/*tdError*/ torch::tensor(1));
-				}
-			}
+			if (reward > 0)
+				score++;
 			state.updateWindow();
 		}
-		std::cout << "Episode: " << episode << std::endl;
+		std::cout << "Episode: " << episode << " Score: " << score << " Epsilon: " << epsilon << std::endl;
 	}
 	torch::save(qNet, "qNet.pt");
 	std::cout << "Done training!" << std::endl;
@@ -136,7 +113,7 @@ void reinforcement_run() {
 	torch::load(net, "qNet.pt");
 	State initial;
 	auto policyFun = std::function([&](State state) {
-		return egreedy(qargmax(*net, state), 0.1);
+		return qargmax(*net, state);
 	});
 	initial.visual(policyFun);
 }
