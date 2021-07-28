@@ -15,9 +15,9 @@ struct Replay {
 };
 
 struct QNet : torch::nn::Module {
-	torch::nn::Linear lin0 = nullptr; // TODO what does nullptr do?
-	torch::nn::Linear lin1 = nullptr;
-	torch::nn::Linear lin2 = nullptr;
+	torch::nn::Linear lin0;
+	torch::nn::Linear lin1;
+	torch::nn::Linear lin2;
 
 	QNet() : lin0(BUG_RESOLUTION * 3, 32), lin1(32, 16), lin2(16, 3) {
 		register_module("lin0", lin0);
